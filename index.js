@@ -22,6 +22,10 @@ function getArgs() {
   let runtimeMax = parseInt(process.argv[i++] ?? DEFAULT_RUNTIME_MAX);
   let reliability = parseFloat(process.argv[i++] ?? DEFAULT_RELIABILITY);
   let args = { concurrency, jobCount, runtimeMin, runtimeMax, reliability };
+  console.log(`args.length ${process.argv.length}`);
+  if(process.argv.length < i) {
+    console.log("USAGE: index.js jobcount concurrency mintime maxtime reliability");
+  }
   console.log(args);
   return args;
 }
@@ -69,14 +73,14 @@ async function runAllAtOnce() {
 }
 
 async function runLimited(args) {
-  const { concurrency, jobCount } = args;
+  const { concurrency, jobCount, reliability, runtimeMin, runtimeMax } = args;
   // console.log(`t = ${t}`);
   const limit = pLimit(concurrency);
   // console.log("limit is ", limit);
   let promises = [];
   for (let i = 0; i < jobCount; i++) {
     let p = () => {
-      return createPromise(i, 5, 10);
+      return createPromise(i, runtimeMin, runtimeMax, reliability);
     };
     promises.push(limit(p).then(console.log, console.warn));
   }
@@ -93,4 +97,6 @@ async function runChunk(chunkSize = 10) {
 }
 
 let args = getArgs();
-runLimited(args);
+console.time('Total');
+await runLimited(args);
+console.timeEnd('Total');
