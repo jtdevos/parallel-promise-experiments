@@ -1,6 +1,6 @@
 import pLimit from "p-limit";
 import lodash from "lodash";
-const {chunk} = lodash;
+const { chunk } = lodash;
 
 const MILLIS_PER_SECOND = 1_000;
 const DEFAULT_JOB_COUNT = 100;
@@ -17,15 +17,22 @@ function rnd(min = 0.0, max = 1.0) {
 
 function getArgs() {
   let i = 2;
+  let algos = {
+    all: runAllAtOnce,
+    limit: runLimited,
+    chunk: runChunks,
+    serial: runSerial
+  }
+  let algo = algos[process.argv[i++]] ?? runChunks;
   let jobCount = parseInt(process.argv[i++] ?? DEFAULT_JOB_COUNT);
   let concurrency = parseInt(process.argv[i++] ?? DEFAULT_CONCURRENCY);
   let runtimeMin = parseInt(process.argv[i++] ?? DEFAULT_RUNTIME_MIN);
   let runtimeMax = parseInt(process.argv[i++] ?? DEFAULT_RUNTIME_MAX);
   let reliability = parseFloat(process.argv[i++] ?? DEFAULT_RELIABILITY);
-  let args = { concurrency, jobCount, runtimeMin, runtimeMax, reliability };
+  let args = { algo, concurrency, jobCount, runtimeMin, runtimeMax, reliability };
   console.log(`args.length ${process.argv.length}`);
-  if(process.argv.length < i) {
-    console.log("USAGE: index.js jobcount concurrency mintime maxtime reliability");
+  if (process.argv.length < i) {
+    console.log("USAGE: index.js [all|limit|chunk|serial] jobcount concurrency mintime maxtime reliability");
   }
   console.log(args);
   return args;
@@ -77,20 +84,20 @@ async function runChunks(args) {
   let pfAll = [];
   //create all the promise-factories
   for (let i = 0; i < jobCount; i++) {
-    pfAll.push(() => createPromise(i, runtimeMin, runtimeMax, reliability));
+    pfAll.push(() => createPromise(i, runtimeMin, runtimeMax, reliability).then(console.log, console.warn));
   }
   let pfChunks = chunk(pfAll, concurrency);
   // console.log(pfChunks);
-  for(let pfChunk of pfChunks) {
-    let msg = await Promise.all(pfChunk.map(pf => pf()));
-    console.log(msg);
+  for(let i = 0; i < pfChunks.length; i++) {
+    await Promise.all(pfChunks[i].map(pf => pf()));
+    console.log(`done with chunk ${i}`);
   }
 }
 
 async function runAllAtOnce(args) {
-  const {jobCount, reliability, runtimeMin, runtimeMax } = args;
+  const { jobCount, reliability, runtimeMin, runtimeMax } = args;
   let jobs = [];
-  for(let i = 0; i < jobCount; i++) {
+  for (let i = 0; i < jobCount; i++) {
     jobs.push(createPromise(i, runtimeMin, runtimeMax, reliability));
   }
   let ret = await Promise.all(jobs);
@@ -98,18 +105,19 @@ async function runAllAtOnce(args) {
 }
 
 async function runSerial(args) {
-  const {jobCount, reliability, runtimeMin, runtimeMax } = args;
-  for(let i = 0; i < jobCount; i++) {
+  const { jobCount, reliability, runtimeMin, runtimeMax } = args;
+  for (let i = 0; i < jobCount; i++) {
     let ret = await createPromise(i, runtimeMin, runtimeMax, reliability);
     console.log(ret);
   }
 }
 
+async function runAlgo(args) {
+  let ret = await args.algo(args);
+  return ret;
+}
 
 let args = getArgs();
 console.time('Total');
-// await runLimited(args);
-// await runChunks(args);
-// await runAllAtOnce(args);
-await runSerial(args);
+await runAlgo(args);
 console.timeEnd('Total');
