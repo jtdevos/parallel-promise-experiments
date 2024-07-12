@@ -1,5 +1,6 @@
 import pLimit from "p-limit";
-import chunk from "lodash";
+import lodash from "lodash";
+const {chunk} = lodash;
 
 const MILLIS_PER_SECOND = 1_000;
 const DEFAULT_JOB_COUNT = 100;
@@ -54,24 +55,6 @@ function createPromise(
   return p;
 }
 
-function createPromiseFactory() {
-  nextId++;
-  let p = () => {
-    createPromise(`${nextId}`);
-  };
-  return p;
-}
-
-//todo
-async function runAllAtOnce() {
-  let promises = [];
-  for (let i = 0; i < 100; i++) {
-    let p = createPromise();
-    p.then(console.log, console.log);
-    promises.push(p);
-  }
-}
-
 async function runLimited(args) {
   const { concurrency, jobCount, reliability, runtimeMin, runtimeMax } = args;
   // console.log(`t = ${t}`);
@@ -89,14 +72,44 @@ async function runLimited(args) {
   });
 }
 
-async function runChunk(chunkSize = 10) {
-  let pfs = [];
-  for (let i = 0; i < chunkSize; i++) {
-    pfs.push(createPromiseFactory(i));
+async function runChunks(args) {
+  const { concurrency, jobCount, reliability, runtimeMin, runtimeMax } = args;
+  let pfAll = [];
+  //create all the promise-factories
+  for (let i = 0; i < jobCount; i++) {
+    pfAll.push(() => createPromise(i, runtimeMin, runtimeMax, reliability));
+  }
+  let pfChunks = chunk(pfAll, concurrency);
+  // console.log(pfChunks);
+  for(let pfChunk of pfChunks) {
+    let msg = await Promise.all(pfChunk.map(pf => pf()));
+    console.log(msg);
   }
 }
 
+async function runAllAtOnce(args) {
+  const {jobCount, reliability, runtimeMin, runtimeMax } = args;
+  let jobs = [];
+  for(let i = 0; i < jobCount; i++) {
+    jobs.push(createPromise(i, runtimeMin, runtimeMax, reliability));
+  }
+  let ret = await Promise.all(jobs);
+  console.log(ret);
+}
+
+async function runSerial(args) {
+  const {jobCount, reliability, runtimeMin, runtimeMax } = args;
+  for(let i = 0; i < jobCount; i++) {
+    let ret = await createPromise(i, runtimeMin, runtimeMax, reliability);
+    console.log(ret);
+  }
+}
+
+
 let args = getArgs();
 console.time('Total');
-await runLimited(args);
+// await runLimited(args);
+// await runChunks(args);
+// await runAllAtOnce(args);
+await runSerial(args);
 console.timeEnd('Total');
