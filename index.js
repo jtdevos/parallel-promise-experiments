@@ -8,7 +8,6 @@ const DEFAULT_CONCURRENCY = 10;
 const DEFAULT_RUNTIME_MIN = 10.0;
 const DEFAULT_RUNTIME_MAX = 10.0;
 const DEFAULT_RELIABILITY = 1.0;
-let nextId = 0;
 
 function rnd(min = 0.0, max = 1.0) {
   let r = Math.random();
@@ -21,18 +20,27 @@ function getArgs() {
     all: runAllAtOnce,
     limit: runLimited,
     chunk: runChunks,
-    serial: runSerial
-  }
+    serial: runSerial,
+  };
   let algo = algos[process.argv[i++]] ?? runChunks;
   let jobCount = parseInt(process.argv[i++] ?? DEFAULT_JOB_COUNT);
   let concurrency = parseInt(process.argv[i++] ?? DEFAULT_CONCURRENCY);
   let runtimeMin = parseInt(process.argv[i++] ?? DEFAULT_RUNTIME_MIN);
   let runtimeMax = parseInt(process.argv[i++] ?? DEFAULT_RUNTIME_MAX);
   let reliability = parseFloat(process.argv[i++] ?? DEFAULT_RELIABILITY);
-  let args = { algo, concurrency, jobCount, runtimeMin, runtimeMax, reliability };
+  let args = {
+    algo,
+    concurrency,
+    jobCount,
+    runtimeMin,
+    runtimeMax,
+    reliability,
+  };
   console.log(`args.length ${process.argv.length}`);
   if (process.argv.length < i) {
-    console.log("USAGE: index.js [all|limit|chunk|serial] jobcount concurrency mintime maxtime reliability");
+    console.log(
+      "USAGE: index.js [all|limit|chunk|serial] jobcount concurrency mintime maxtime reliability"
+    );
   }
   console.log(args);
   return args;
@@ -84,12 +92,17 @@ async function runChunks(args) {
   let pfAll = [];
   //create all the promise-factories
   for (let i = 0; i < jobCount; i++) {
-    pfAll.push(() => createPromise(i, runtimeMin, runtimeMax, reliability).then(console.log, console.warn));
+    pfAll.push(() =>
+      createPromise(i, runtimeMin, runtimeMax, reliability).then(
+        console.log,
+        console.warn
+      )
+    );
   }
   let pfChunks = chunk(pfAll, concurrency);
   // console.log(pfChunks);
-  for(let i = 0; i < pfChunks.length; i++) {
-    await Promise.all(pfChunks[i].map(pf => pf()));
+  for (let i = 0; i < pfChunks.length; i++) {
+    await Promise.all(pfChunks[i].map((pf) => pf()));
     console.log(`done with chunk ${i}`);
   }
 }
@@ -118,6 +131,6 @@ async function runAlgo(args) {
 }
 
 let args = getArgs();
-console.time('Total');
+console.time("Total");
 await runAlgo(args);
-console.timeEnd('Total');
+console.timeEnd("Total");
